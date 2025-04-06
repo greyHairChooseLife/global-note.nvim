@@ -3,6 +3,7 @@ local utils = require("global-note.utils")
 
 local M = {
   _inited = false,
+  _open_windows = {}, -- Add this new field to track open windows
 
   _default_preset_default_values = {
     filename = "global.md",
@@ -41,6 +42,57 @@ local M = {
 ---@class GlobalNote_UserConfig: GlobalNote_UserPreset
 ---@field additional_presets? { [string]: GlobalNote_UserPreset }
 
+M._setup_resize_autocmd = function()
+  vim.api.nvim_create_autocmd("VimResized", {
+    group = vim.api.nvim_create_augroup("GlobalNoteResize", { clear = true }),
+    callback = function()
+      -- Reapply window configurations for all open windows
+      for name, info in pairs(M._open_windows) do
+        local win_id = info.window_id
+        local preset_obj = info.preset
+
+        -- Check if window still exists
+        if win_id and vim.api.nvim_win_is_valid(win_id) then
+          -- Get fresh window config
+          local expanded_preset = preset_obj:_expand_options()
+          if expanded_preset then
+            -- Update window configuration
+            vim.api.nvim_win_set_config(win_id, expanded_preset.window_config)
+          end
+        else
+          -- Window no longer exists, remove from tracking
+          M._open_windows[name] = nil
+        end
+      end
+    end,
+  })
+end
+
+---@return boolean Whether the specified note is open
+---@param preset_name? string The name of the preset to check. If nil or empty, checks the default preset.
+M.is_note_open = function(preset_name)
+  preset_name = preset_name or ""
+  return M._open_windows[preset_name] ~= nil
+end
+
+---@return string[] List of names of open notes
+M.get_open_notes = function()
+  local open_notes = {}
+  for name, _ in pairs(M._open_windows) do
+    table.insert(open_notes, name)
+  end
+  return open_notes
+end
+
+---@return number|nil Window ID for the specified note, nil if not open
+---@param preset_name? string The name of the preset to get the window for. If nil or empty, gets the default preset window.
+M.get_note_window = function(preset_name)
+  preset_name = preset_name or ""
+  local info = M._open_windows[preset_name]
+  return info and info.window_id or nil
+end
+
+-- Modify the setup function to initialize the autocmd
 ---@param options? GlobalNote_UserConfig
 M.setup = function(options)
   local user_options = vim.deepcopy(options or {})
@@ -62,6 +114,9 @@ M.setup = function(options)
     M._presets[key] = preset.new(preset_options)
   end
 
+  -- Initialize the _open_windows table and set up the resize autocmd
+  M._open_windows = {}
+  M._setup_resize_autocmd()
   M._inited = true
 end
 

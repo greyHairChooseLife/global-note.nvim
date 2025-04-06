@@ -68,7 +68,7 @@ local new = function(options)
       p:toggle()
     end, {
       nargs = 0,
-      desc = desc
+      desc = desc,
     })
   end
 
@@ -157,6 +157,10 @@ local new = function(options)
       if vim.w[window_id].global_note_window == expanded_preset.name then
         vim.api.nvim_win_close(window_id, false)
         something_was_closed = true
+
+        -- Remove from _open_windows tracking
+        local global_note = require("global-note")
+        global_note._open_windows[expanded_preset.name] = nil
       end
     end
 
@@ -168,6 +172,14 @@ local new = function(options)
     local window_id =
       vim.api.nvim_open_win(buffer_id, true, expanded_preset.window_config)
     vim.w[window_id].global_note_window = expanded_preset.name
+
+    -- Store in _open_windows for tracking
+    local global_note = require("global-note")
+    global_note._open_windows[expanded_preset.name] = {
+      window_id = window_id,
+      buffer_id = buffer_id,
+      preset = self,
+    }
 
     if expanded_preset.autosave then
       local save_file = function()
