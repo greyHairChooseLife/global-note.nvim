@@ -140,4 +140,41 @@ M.toggle_note = function(preset_name)
   p:toggle()
 end
 
+---Closes all currently open note windows
+M.close_all_notes = function()
+  if not M._inited then
+    return
+  end
+
+  -- Create a copy of open notes to iterate through, since we'll be modifying
+  -- the _open_windows table during iteration
+  local open_notes = {}
+  for preset_name, info in pairs(M._open_windows) do
+    table.insert(open_notes, {
+      name = preset_name,
+      preset = info.preset,
+      window_id = info.window_id,
+    })
+  end
+
+  -- Close each note using its preset toggle function
+  for _, note_info in ipairs(open_notes) do
+    -- Check if window is still valid before trying to close
+    if
+      note_info.window_id and vim.api.nvim_win_is_valid(note_info.window_id)
+    then
+      if note_info.preset and type(note_info.preset.toggle) == "function" then
+        note_info.preset:toggle()
+      else
+        -- Fallback method if preset object is not available
+        vim.api.nvim_win_close(note_info.window_id, false)
+        M._open_windows[note_info.name] = nil
+      end
+    end
+  end
+
+  -- Ensure the tracking table is empty after closing all windows
+  M._open_windows = {}
+end
+
 return M
